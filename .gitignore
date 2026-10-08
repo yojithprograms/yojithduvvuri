@@ -1,0 +1,10 @@
+# not used by the site — kept locally only
+*.mp3
+IMG_*.jpeg
+IMG_*.jpg
+
+# tooling
+.vercel
+node_modules
+.DS_Store
+Thumbs.db

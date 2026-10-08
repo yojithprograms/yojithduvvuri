@@ -1,0 +1,1588 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Yojith Duvvuri</title>
+  <meta name="description" content="Hi, I'm Yojith Duvvuri. I build cool stuff — like FORGED, a workout builder that makes plans tailored to you.">
+  <meta name="theme-color" content="#070a08">
+  <link rel="canonical" href="https://yojithduvvuri.vercel.app/">
+
+  <!-- link previews (iMessage, Discord, Instagram, LinkedIn, X...) -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://yojithduvvuri.vercel.app/">
+  <meta property="og:title" content="Yojith Duvvuri">
+  <meta property="og:description" content="I build cool stuff — like FORGED, a workout builder that makes plans tailored to you.">
+  <meta property="og:image" content="https://yojithduvvuri.vercel.app/assets/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Terminal window: Hi, I'm Yojith Duvvuri — I'm building cool stuff right now, dude.">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Person",
+      "name": "Yojith Duvvuri",
+      "url": "https://yojithduvvuri.vercel.app/",
+      "sameAs": ["https://github.com/yojithprograms"],
+      "jobTitle": "VP of Finance, DECA chapter"
+    }
+  </script>
+  <script>
+    document.documentElement.classList.add("js", "gated");
+    try { var t = localStorage.getItem("theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+  </script>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23070a08'/%3E%3Ctext x='5' y='22' font-family='monospace' font-size='16' font-weight='700' fill='%2339ff88'%3E%3E_%3C/text%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <!-- display font for the FORGED wordmark, subset to just those 6 letters (~2KB) -->
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&text=FORGED&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #070a08;
+      --bar: #121915;
+      --border: #1c2a22;
+      --fg: #cfe9d6;
+      --dim: #71897a;            /* 5:1 contrast on the terminal bg (WCAG AA) */
+      /* accent color — swapped by the `theme` command */
+      --accent: #39ff88;
+      --accent-rgb: 57, 255, 136;
+    }
+    [data-theme="amber"]  { --accent: #ffb84d; --accent-rgb: 255, 184, 77; }
+    [data-theme="cyan"]   { --accent: #4de3ff; --accent-rgb: 77, 227, 255; }
+    [data-theme="pink"]   { --accent: #ff6ec7; --accent-rgb: 255, 110, 199; }
+    [data-theme="purple"] { --accent: #b18cff; --accent-rgb: 177, 140, 255; }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+    .gated body { overflow: hidden; }   /* no scrolling behind the click-to-enter screen */
+
+    ::selection { background: var(--accent); color: var(--bg); }
+
+    /* first screen: the terminal */
+    .landing {
+      min-height: 100vh;
+      min-height: 100svh;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr); /* stop long lines from widening the page */
+      place-items: center;
+      align-content: center;
+      gap: 14px;
+      padding: 16px;
+    }
+
+    /* thin scroll-progress bar — pure CSS scroll-driven animation, no JS */
+    .progress {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 40;
+      height: 2px;
+      background: var(--accent);
+      box-shadow: 0 0 10px rgba(var(--accent-rgb), .7);
+      transform-origin: left;
+      transform: scaleX(0);
+      pointer-events: none;
+    }
+    @supports (animation-timeline: scroll()) {
+      .progress { animation: grow linear both; animation-timeline: scroll(root); }
+    }
+    @keyframes grow { to { transform: scaleX(1); } }
+
+    /* ---------- background ----------
+       Everything here is either static (painted once) or moved with
+       transform only, so it runs on the compositor and never repaints. */
+    .bg {
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      overflow: hidden;
+      pointer-events: none;
+    }
+
+    /* dot grid that fades out toward the edges */
+    .grid {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(rgba(207, 233, 214, .2) 1px, transparent 1.5px) 0 0 / 26px 26px;
+      -webkit-mask-image: radial-gradient(ellipse 70% 65% at 50% 50%, #000 30%, transparent 100%);
+              mask-image: radial-gradient(ellipse 70% 65% at 50% 50%, #000 30%, transparent 100%);
+    }
+
+    /* two soft glows slowly drifting around (gradients, not blur filters — much cheaper) */
+    .orb {
+      position: absolute;
+      width: 70vmax;
+      height: 70vmax;
+      border-radius: 50%;
+      will-change: transform;
+    }
+    .orb.a {
+      top: -35vmax; left: -25vmax;
+      background: radial-gradient(circle, rgba(var(--accent-rgb), .11), transparent 62%);
+      animation: drift-a 26s ease-in-out infinite alternate;
+    }
+    .orb.b {
+      bottom: -40vmax; right: -25vmax;
+      background: radial-gradient(circle, rgba(124, 196, 255, .08), transparent 62%);
+      animation: drift-b 32s ease-in-out infinite alternate;
+    }
+    @keyframes drift-a { to { transform: translate(22vw, 18vh); } }
+    @keyframes drift-b { to { transform: translate(-20vw, -16vh); } }
+
+    /* faint glow that follows the mouse across the grid */
+    .spot {
+      position: absolute;
+      top: -300px; left: -300px;
+      width: 600px; height: 600px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(var(--accent-rgb), .07), transparent 65%);
+      opacity: 0;
+      transition: opacity .6s, transform .35s cubic-bezier(.2, .8, .2, 1);
+      will-change: transform;
+    }
+    .spot.on { opacity: 1; }
+
+    /* ---------- terminal window ---------- */
+    .term {
+      position: relative;
+      width: min(1040px, 100%);
+      background: rgba(12, 17, 14, .9);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow:
+        0 30px 80px -20px rgba(0, 0, 0, .8),
+        0 0 60px -10px rgba(var(--accent-rgb), .12);
+    }
+
+    /* static CRT scanlines — painted once, zero runtime cost */
+    .term::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: repeating-linear-gradient(
+        to bottom,
+        rgba(255, 255, 255, .018) 0 1px,
+        transparent 1px 3px
+      );
+    }
+
+    /* power-on flash when the terminal zooms in */
+    .flash {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      pointer-events: none;
+      opacity: 0;
+      background: radial-gradient(ellipse at 50% 45%, rgba(var(--accent-rgb), .22), transparent 70%);
+    }
+    .gated.open .flash { animation: flash .7s ease-out .1s both; }
+    @keyframes flash { 0% { opacity: 0; } 20% { opacity: 1; } 100% { opacity: 0; } }
+
+    .bar {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      gap: 8px;
+      padding: 11px 14px;
+      background: var(--bar);
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--dim);
+    }
+    .dots { display: flex; gap: 8px; }
+    .dot { width: 12px; height: 12px; border-radius: 50%; }
+    .dot:nth-child(1) { background: #ff5f57; }
+    .dot:nth-child(2) { background: #febc2e; }
+    .dot:nth-child(3) { background: #28c840; }
+    .title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .clock { justify-self: end; font-variant-numeric: tabular-nums; }
+
+    .screen {
+      height: min(640px, 78vh);
+      height: min(640px, 78svh);
+      overflow-y: auto;
+      padding: 22px 26px 26px;
+      font-size: clamp(13px, 2.4vw, 16.5px);
+      line-height: 1.65;
+      cursor: text;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+    }
+
+    .line { white-space: pre-wrap; word-break: break-word; min-height: 1.65em; }
+
+    .prompt { white-space: nowrap; }
+    .u  { color: var(--accent); }
+    .h  { color: var(--accent); }
+    .pa { color: var(--accent); }
+    .d  { color: var(--dim); }
+
+    .dim   { color: var(--dim); }
+    .amber { color: var(--accent); }
+    .red   { color: var(--accent); }
+    .acc   { color: var(--accent); }
+
+    .hero {
+      font-size: clamp(24px, 6vw, 52px);
+      font-weight: 700;
+      line-height: 1.25;
+      margin: 6px 0 10px;
+      letter-spacing: -.02em;
+    }
+    /* spinning 3D diamond next to the name (drawn on a tiny canvas) */
+    .gem {
+      display: inline-block;
+      width: 1.35em;
+      height: 1.35em;
+      margin-left: .18em;
+      vertical-align: -.27em;
+      cursor: grab;
+      touch-action: none;
+      animation: gem-in .8s cubic-bezier(.34, 1.56, .64, 1) both;
+    }
+    .gem:active { cursor: grabbing; }
+    @keyframes gem-in { from { transform: scale(0) rotate(-120deg); opacity: 0; } }
+
+    /* the line right under the name */
+    .sub {
+      margin: -4px 0 14px;
+      font-size: clamp(16px, 2.8vw, 23px);
+      font-weight: 700;
+      line-height: 1.4;
+      color: rgba(var(--accent-rgb), .85);    /* follows the theme */
+      text-shadow: 0 0 16px rgba(var(--accent-rgb), .3);
+    }
+    .hero .name {
+      color: var(--accent);
+      text-shadow: 0 0 18px rgba(var(--accent-rgb), .45);
+      cursor: default;
+    }
+
+    .cur {
+      display: inline-block;
+      width: .6em;
+      height: 1.15em;
+      margin-left: 1px;
+      vertical-align: text-bottom;
+      background: var(--accent);
+      animation: blink 1s steps(1) infinite;
+    }
+    @keyframes blink { 50% { opacity: 0; } }
+
+    /* clickable commands (help list, tips) */
+    .cmd {
+      margin: 0;
+      padding: 0;
+      border: 0;
+      background: none;
+      color: var(--accent);
+      font: inherit;
+      cursor: pointer;
+      text-decoration: underline dotted rgba(var(--accent-rgb), .4);
+      text-underline-offset: 3px;
+    }
+    .cmd:hover, .cmd:focus-visible { text-decoration-style: solid; outline: none; }
+    .help-row .cmd { display: inline-block; width: 12ch; text-align: left; text-decoration: none; }
+    .help-row .cmd:hover { text-decoration: underline; }
+
+    /* ---------- interactive prompt ---------- */
+    #cli { display: flex; align-items: center; margin: 0; }
+    #cli[hidden] { display: none; }
+    .field { position: relative; flex: 1; min-width: 0; margin-left: .6ch; }
+    #in {
+      display: block;
+      width: 100%;
+      height: 1.65em;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      outline: 0;
+      background: transparent;
+      color: var(--fg);
+      font: inherit;
+      line-height: 1.65em;
+      caret-color: var(--accent);
+    }
+    /* fish-style autosuggestion drawn behind the input */
+    .ghost {
+      position: absolute;
+      inset: 0;
+      line-height: 1.65em;
+      white-space: pre;
+      overflow: hidden;
+      color: var(--dim);
+      opacity: .7;
+      pointer-events: none;
+    }
+    .ghost .typed { visibility: hidden; }
+
+    /* line under the terminal: "press any key to skip" → "scroll to see my work" */
+    .hint-row { min-height: 20px; font-size: 12px; color: var(--dim); text-align: center; }
+    .hint {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 8px;
+      border: 0;
+      background: none;
+      color: var(--dim);
+      font: inherit;
+      cursor: pointer;
+      transition: color .2s;
+    }
+    .hint:hover, .hint:focus-visible { color: var(--accent); outline: none; }
+    .hint .arrow { display: inline-block; color: var(--accent); animation: bob 1.6s ease-in-out infinite; }
+    @keyframes bob { 50% { transform: translateY(4px); } }
+
+    /* ---------- projects ---------- */
+    .work {
+      width: min(1040px, 100% - 32px);
+      margin: 0 auto;
+      padding: 12vh 0 40px;
+      display: grid;
+      gap: 40px;
+    }
+    .work-head .cmdline { font-size: 13px; }
+    .work-head h2 {
+      margin: 10px 0 6px;
+      font-size: clamp(30px, 6vw, 56px);
+      line-height: 1.05;
+      letter-spacing: -.03em;
+    }
+    .work-head h2 .acc { text-shadow: 0 0 22px rgba(var(--accent-rgb), .4); }
+    .work-head p { margin: 0; color: var(--dim); font-size: 14px; }
+
+    /* a project is a little OS window */
+    .win {
+      position: relative;
+      overflow: hidden;
+      background: rgba(12, 17, 14, .9);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: 0 30px 80px -24px rgba(0, 0, 0, .8);
+    }
+    .win > .bar .tag {
+      justify-self: end;
+      padding: 2px 8px;
+      border: 1px solid rgba(var(--p-rgb, var(--accent-rgb)), .4);
+      border-radius: 999px;
+      color: rgb(var(--p-rgb, var(--accent-rgb)));
+      font-size: 10px;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+
+    .project {
+      --p: var(--accent);      /* card color follows the theme */
+      --p-rgb: var(--accent-rgb);
+      box-shadow:
+        0 30px 80px -24px rgba(0, 0, 0, .8),
+        0 0 80px -30px rgba(var(--p-rgb), .25);
+    }
+    .proj {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+      gap: 36px;
+      align-items: center;
+      padding: 34px;
+    }
+    .idx { color: var(--dim); font-size: 12px; letter-spacing: .08em; }
+    .forged-word {
+      margin: 6px 0 2px;
+      font-family: "Bebas Neue", "JetBrains Mono", sans-serif;
+      font-size: clamp(56px, 9vw, 96px);
+      font-weight: 400;
+      line-height: .9;
+      letter-spacing: .06em;
+      color: var(--p);
+      text-shadow: 0 0 30px rgba(var(--p-rgb), .35);
+    }
+    .lede { margin: 10px 0 12px; font-size: 16px; font-weight: 700; color: #eef5e6; }
+    .desc { margin: 0 0 16px; font-size: 13.5px; line-height: 1.75; color: #a9c2b0; }
+    .desc b { color: var(--fg); font-weight: 700; }
+
+    .feat { list-style: none; margin: 0 0 18px; padding: 0; display: grid; gap: 6px; font-size: 13px; }
+    .feat li::before { content: "→ "; color: var(--p); }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      margin: 0 0 18px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .stat { padding: 10px 8px; text-align: center; border-left: 1px solid var(--border); }
+    .stat:first-child { border-left: 0; }
+    .stat b {
+      display: block;
+      font-size: 22px;
+      color: var(--p);
+      font-variant-numeric: tabular-nums;
+    }
+    .stat span { font-size: 10px; color: var(--dim); text-transform: uppercase; letter-spacing: .08em; }
+
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 20px; }
+    .chips span {
+      padding: 3px 10px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      font-size: 11px;
+      color: var(--dim);
+    }
+
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 11px 16px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--fg);
+      font-size: 13px;
+      font-weight: 700;
+      text-decoration: none;
+      transition: transform .15s, border-color .2s, background .2s, box-shadow .2s;
+    }
+    .btn:hover, .btn:focus-visible { transform: translateY(-2px); border-color: rgba(var(--p-rgb), .6); outline: none; }
+    .btn.primary { background: var(--p); border-color: var(--p); color: #0b0d06; }
+    .btn.primary:hover, .btn.primary:focus-visible { box-shadow: 0 8px 30px -6px rgba(var(--p-rgb), .6); }
+    .btn .ext { opacity: .6; }
+
+    /* screenshot in a little browser frame, with a 3D tilt on hover */
+    .shot-wrap { perspective: 1000px; }
+    .shot {
+      display: block;
+      overflow: hidden;
+      color: inherit;
+      text-decoration: none;
+      border: 1px solid #2a2f22;
+      border-radius: 10px;
+      background: #0a0a0a;
+      box-shadow: 0 24px 60px -20px rgba(0, 0, 0, .9), 0 0 50px -20px rgba(var(--p-rgb), .35);
+      transform: rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+      transition: transform .25s ease-out, box-shadow .3s;
+      will-change: transform;
+    }
+    .shot:hover { box-shadow: 0 30px 70px -20px rgba(0, 0, 0, .9), 0 0 70px -16px rgba(var(--p-rgb), .5); }
+    .shot-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      background: #151812;
+      border-bottom: 1px solid #23281d;
+    }
+    .shot-bar .mini { display: flex; gap: 5px; }
+    .shot-bar .mini i { width: 8px; height: 8px; border-radius: 50%; background: #3a4033; }
+    .shot-bar .url {
+      flex: 1;
+      padding: 3px 10px;
+      border-radius: 6px;
+      background: #0d0f0b;
+      color: #8a9478;
+      font-size: 11px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .shot img { display: block; width: 100%; height: auto; }
+
+    /* the "still cooking" window */
+    .soon { border-style: dashed; background: rgba(12, 17, 14, .6); }
+    .soon-body { padding: 26px 34px 30px; font-size: 14px; line-height: 1.9; }
+    .soon-body .big { margin: 4px 0 8px; font-size: clamp(20px, 3.4vw, 28px); font-weight: 700; color: var(--accent); }
+
+    /* ---------- experience ---------- */
+    .role {
+      --p: var(--accent);      /* card color follows the theme */
+      --p-rgb: var(--accent-rgb);
+      box-shadow:
+        0 30px 80px -24px rgba(0, 0, 0, .8),
+        0 0 80px -30px rgba(var(--p-rgb), .25);
+    }
+    .exp {
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+      gap: 36px;
+      align-items: center;
+      padding: 34px;
+    }
+    .photo { margin: 0; }
+    .frame {
+      position: relative;
+      overflow: hidden;
+      border: 1px solid #263240;
+      border-radius: 10px;
+      box-shadow: 0 24px 60px -20px rgba(0, 0, 0, .9), 0 0 50px -20px rgba(var(--p-rgb), .35);
+    }
+    .frame img { display: block; width: 100%; height: auto; }
+    .photo figcaption { margin-top: 10px; font-size: 12px; color: var(--dim); }
+
+    /* "that's me" arrow, positioned in % so it stays on target at any size */
+    .me {
+      position: absolute;
+      left: calc(56.5% - 50px);
+      width: 100px;
+      top: 3%;
+      bottom: 72%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      pointer-events: none;
+    }
+    .me-label {
+      flex: none;
+      padding: 3px 10px;
+      border-radius: 999px;
+      background: var(--accent);
+      color: #07110b;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, .45);
+    }
+    .me svg { flex: 1; min-height: 0; width: 34px; overflow: visible; }
+    .me .outline { fill: none; stroke: #07110b; stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; }
+    .me .stroke  { fill: none; stroke: var(--accent); stroke-width: 3.6; stroke-linecap: round; stroke-linejoin: round; }
+    .js .reveal .me { opacity: 0; }
+    .js .reveal.in .me { animation: me-in .6s cubic-bezier(.34, 1.56, .64, 1) .8s both, bob 1.6s ease-in-out 1.4s infinite; }
+    @keyframes me-in { from { opacity: 0; transform: translateY(-16px) scale(.8); } to { opacity: 1; transform: none; } }
+
+    .role-title {
+      margin: 6px 0 4px;
+      font-size: clamp(30px, 4.6vw, 44px);
+      line-height: 1.05;
+      letter-spacing: -.02em;
+      color: var(--accent);                 /* follows the theme */
+      text-shadow: 0 0 26px rgba(var(--accent-rgb), .35);
+    }
+    .org { margin-bottom: 16px; font-size: 13px; color: var(--fg); }
+    .org .d { margin: 0 6px; }
+
+    .sr-only {
+      position: absolute;
+      width: 1px; height: 1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+    }
+
+    .foot-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-bottom: 16px; }
+    .foot-links a {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 14px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      color: var(--fg);
+      font-size: 12px;
+      text-decoration: none;
+      transition: border-color .2s, color .2s, transform .15s;
+    }
+    .foot-links a:hover, .foot-links a:focus-visible { border-color: rgba(var(--accent-rgb), .6); color: var(--accent); transform: translateY(-2px); outline: none; }
+    .foot-links svg { width: 14px; height: 14px; fill: currentColor; }
+
+    .site-foot {
+      padding: 30px 16px 40px;
+      font-size: 12px;
+      color: var(--dim);
+      text-align: center;
+    }
+
+    /* scroll reveal: windows "open" as they come into view (transform + opacity only) */
+    .js .reveal {
+      opacity: 0;
+      transform: translateY(48px) scale(.94);
+      transition: opacity .7s ease, transform .9s cubic-bezier(.16, 1, .3, 1);
+    }
+    .js .reveal.in { opacity: 1; transform: none; }
+    .js .reveal .stagger > * {
+      opacity: 0;
+      transform: translateX(-12px);
+      transition: opacity .5s ease, transform .5s ease;
+      transition-delay: calc(var(--i, 0) * 70ms + .35s);
+    }
+    .js .reveal.in .stagger > * { opacity: 1; transform: none; }
+
+    @media (max-width: 820px) {
+      .proj { grid-template-columns: minmax(0, 1fr); padding: 24px 20px; gap: 26px; }
+      .shot-wrap { order: -1; }
+      .soon-body { padding: 22px 20px 26px; }
+      .exp { grid-template-columns: minmax(0, 1fr); padding: 24px 20px; gap: 26px; }
+    }
+    @media (max-width: 420px) {
+      .stats { grid-template-columns: repeat(2, 1fr); }
+      .stat:nth-child(3) { border-left: 0; }
+      .stat:nth-child(n + 3) { border-top: 1px solid var(--border); }
+    }
+
+    /* cursor trail canvas */
+    #trail {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    /* ---------- click-to-enter gate ----------
+       Only exists when JS runs (html.gated is set in <head>).
+       The zoom is transform + opacity only, so it stays on the GPU. */
+    .gate { display: none; }
+    .gated .gate {
+      position: fixed;
+      inset: 0;
+      z-index: 5;
+      display: grid;
+      place-items: center;
+      width: 100%;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      background: none;
+      color: var(--fg);
+      font: inherit;
+      cursor: pointer;
+      transition: opacity .3s ease-in;
+    }
+    .gate:focus-visible { outline: none; }
+    .gate-inner {
+      display: grid;
+      justify-items: center;
+      gap: 16px;
+      transition: transform .4s cubic-bezier(.7, 0, .84, 0);
+    }
+    .gate-label {
+      font-size: 12px;
+      letter-spacing: .4em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+    .gate-cta {
+      font-size: clamp(20px, 3.6vw, 28px);
+      font-weight: 700;
+      color: var(--accent);
+      text-shadow: 0 0 20px rgba(var(--accent-rgb), .45);
+    }
+    .gate-cta .br {
+      display: inline-block;
+      color: var(--dim);
+      transition: transform .25s ease;
+    }
+    .gate:hover .br.l, .gate:focus-visible .br.l { transform: translateX(-8px); }
+    .gate:hover .br.r, .gate:focus-visible .br.r { transform: translateX(8px); }
+    .gate-hint { font-size: 12px; color: var(--dim); }
+
+    .gated .term   { opacity: 0; transform: scale(.25); pointer-events: none; will-change: transform, opacity; }
+    .gated .hint-row, .gated .work, .gated .site-foot, .gated .progress { opacity: 0; }
+
+    .gated.open .gate       { opacity: 0; pointer-events: none; }
+    .gated.open .gate-inner { transform: scale(2.6); }   /* zoom "through" the text */
+    .gated.open .term {
+      opacity: 1;
+      transform: none;
+      transition: transform .6s cubic-bezier(.16, 1, .3, 1) .06s, opacity .25s ease .06s;
+    }
+    .gated.open .hint-row { opacity: 1; transition: opacity .4s ease .4s; }
+
+    @media (max-width: 560px) {
+      .title { display: none; }
+      .bar { grid-template-columns: 1fr 1fr; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .cur, .orb { animation: none; }
+      .spot { display: none; }
+      .gated .term, .gated.open .gate-inner { transform: none; }
+      .gated.open .flash, .hint .arrow, .gem { animation: none; }
+      .js .reveal, .js .reveal .stagger > * { opacity: 1; transform: none; transition: none; }
+      .js .reveal .me, .js .reveal.in .me { opacity: 1; animation: none; }
+      .shot { transform: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="bg" aria-hidden="true">
+    <div class="orb a"></div>
+    <div class="orb b"></div>
+    <div class="grid"></div>
+    <div class="spot" id="spot"></div>
+  </div>
+  <canvas id="trail" aria-hidden="true"></canvas>
+
+  <button class="gate" id="gate" type="button">
+    <span class="gate-inner">
+      <span class="gate-label">yojith duvvuri</span>
+      <span class="gate-cta"><span class="br l">[</span> click to enter <span class="br r">]</span></span>
+      <span class="gate-hint" id="gate-hint">or press any key</span>
+    </span>
+  </button>
+
+  <div class="progress" aria-hidden="true"></div>
+
+  <main>
+  <h1 class="sr-only">Yojith Duvvuri</h1>
+
+  <section class="landing" id="top">
+  <div class="term" role="region" aria-label="Terminal">
+    <div class="flash" aria-hidden="true"></div>
+    <div class="bar" aria-hidden="true">
+      <div class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+      <div class="title">yojith@dev: ~ — zsh</div>
+      <div class="clock" id="clock"></div>
+    </div>
+
+    <div class="screen" id="screen">
+      <div id="out" aria-live="off">
+        <noscript>
+          <div class="hero">Hi, I'm <span class="name">Yojith Duvvuri</span></div>
+          <div class="line sub">I'm building cool stuff right now, dude.</div>
+          <div class="line dim">scroll down to see my work ↓</div>
+        </noscript>
+      </div>
+
+      <form id="cli" autocomplete="off" hidden>
+        <label for="in" class="prompt"><span class="u">yojith</span><span class="d">@</span><span class="h">dev</span><span class="d">:</span><span class="pa">~</span><span class="d">$</span></label>
+        <span class="field">
+          <span class="ghost" id="ghost" aria-hidden="true"></span>
+          <input id="in" type="text" spellcheck="false" autocapitalize="off" autocorrect="off" enterkeyhint="go" aria-label="terminal command">
+        </span>
+      </form>
+    </div>
+  </div>
+
+  <div class="hint-row" id="foot">press any key to skip</div>
+  </section>
+
+  <section class="work" id="projects" aria-labelledby="work-h">
+    <header class="work-head reveal">
+      <div class="cmdline"><span class="u">yojith</span><span class="d">@</span><span class="h">dev</span><span class="d">:</span><span class="pa">~</span><span class="d">$</span> ls ~/projects</div>
+      <h2 id="work-h">things I've <span class="acc">built</span>.</h2>
+      <p>one shipped, more on the way.</p>
+    </header>
+
+    <article class="win project reveal" id="forged" aria-labelledby="forged-h">
+      <div class="bar" aria-hidden="true">
+        <div class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+        <div class="title">~/projects/forged</div>
+        <span class="tag">featured</span>
+      </div>
+      <div class="proj">
+        <div class="proj-info">
+          <div class="idx">01 — first project</div>
+          <h3 class="forged-word" id="forged-h">FORGED</h3>
+          <p class="lede">A workout builder that forges a plan around <em>you</em>.</p>
+          <p class="desc">
+            Answer six quick questions: how many <b>days</b> you can train, how <b>long</b> your sessions are,
+            your <b>experience</b>, what <b>gym access</b> you have, how hard you can push, and your <b>goal</b>.
+            FORGED then generates a balanced, fatigue-aware weekly plan with exercises, sets, reps and rest times.
+          </p>
+          <ul class="feat stagger">
+            <li style="--i:0">tailored to your experience, time &amp; equipment</li>
+            <li style="--i:1">picks the right split: full body, upper/lower, PPL…</li>
+            <li style="--i:2">fatigue tracking, daily workout &amp; history log</li>
+            <li style="--i:3">no backend, no frameworks: pure vanilla JS</li>
+          </ul>
+          <div class="stats">
+            <div class="stat"><b data-count="40" data-suffix="+">40+</b><span>exercises</span></div>
+            <div class="stat"><b data-count="7">7</b><span>split types</span></div>
+            <div class="stat"><b data-count="6">6</b><span>step setup</span></div>
+            <div class="stat"><b>0</b><span>dependencies</span></div>
+          </div>
+          <div class="chips"><span>HTML</span><span>CSS</span><span>JavaScript</span><span>Vercel</span></div>
+          <div class="actions">
+            <a class="btn primary" href="https://forged-workout-builder.vercel.app/" target="_blank" rel="noopener">▶ try it live <span class="ext">↗</span></a>
+            <a class="btn" href="https://github.com/yojithprograms/Forged-Workout-Builder" target="_blank" rel="noopener">{ } source code <span class="ext">↗</span></a>
+          </div>
+        </div>
+        <div class="shot-wrap">
+          <a class="shot" id="shot" href="https://forged-workout-builder.vercel.app/" target="_blank" rel="noopener" aria-label="Open the FORGED live site">
+            <div class="shot-bar" aria-hidden="true">
+              <span class="mini"><i></i><i></i><i></i></span>
+              <span class="url">forged-workout-builder.vercel.app</span>
+            </div>
+            <img src="assets/forged.webp" width="1280" height="800" loading="lazy" decoding="async"
+                 alt="FORGED home page: “Train smarter every day”, a smart workout generator">
+          </a>
+        </div>
+      </div>
+    </article>
+
+    <article class="win soon reveal" aria-label="Next project, coming soon">
+      <div class="bar" aria-hidden="true">
+        <div class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+        <div class="title">~/projects/???</div>
+        <span class="tag">wip</span>
+      </div>
+      <div class="soon-body">
+        <div class="idx">02 — next project</div>
+        <div><span class="u">yojith</span><span class="d">@</span><span class="h">dev</span><span class="d">:</span><span class="pa">~</span><span class="d">$</span> ./build next-project.sh</div>
+        <div class="dim" id="soon-bar">[###################.] 99%</div>
+        <div class="big">! still cooking... more coming soon.<span class="cur"></span></div>
+      </div>
+    </article>
+  </section>
+
+  <section class="work" id="experience" aria-labelledby="exp-h">
+    <header class="work-head reveal">
+      <div class="cmdline"><span class="u">yojith</span><span class="d">@</span><span class="h">dev</span><span class="d">:</span><span class="pa">~</span><span class="d">$</span> cat ~/experience</div>
+      <h2 id="exp-h">things I <span class="acc">do</span>.</h2>
+      <p>outside of making projects.</p>
+    </header>
+
+    <article class="win role reveal" id="deca" aria-labelledby="deca-h">
+      <div class="bar" aria-hidden="true">
+        <div class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+        <div class="title">~/experience/deca</div>
+        <span class="tag">officer</span>
+      </div>
+      <div class="exp">
+        <figure class="photo">
+          <div class="frame">
+            <img src="assets/deca-1400.webp" srcset="assets/deca-800.webp 800w, assets/deca-1400.webp 1400w"
+                 sizes="(max-width: 820px) 92vw, 560px" width="1400" height="1050" loading="lazy" decoding="async"
+                 alt="Yojith with the school DECA chapter's officer team at Camp DECA 2026">
+            <div class="me" aria-hidden="true">
+              <span class="me-label">that's me</span>
+              <svg viewBox="0 0 30 60" preserveAspectRatio="xMidYMax meet">
+                <g class="outline"><path d="M15 3 C 5 18, 25 30, 15 54"/><path d="M6 45 L15 56 L24 45"/></g>
+                <g class="stroke"><path d="M15 3 C 5 18, 25 30, 15 54"/><path d="M6 45 L15 56 L24 45"/></g>
+              </svg>
+            </div>
+          </div>
+          <figcaption>📍 Camp DECA 2026, with my officer team</figcaption>
+        </figure>
+
+        <div class="exp-info">
+          <div class="idx">01 — leadership</div>
+          <h3 class="role-title" id="deca-h">VP of Finance</h3>
+          <div class="org">DECA<span class="d">·</span>my school's chapter<span class="d">·</span>officer team</div>
+          <p class="desc">
+            <b>DECA</b> is an international student organization that prepares high schoolers to become leaders and
+            entrepreneurs in <b>marketing</b>, <b>finance</b>, <b>hospitality</b> and <b>management</b> through
+            competitive events, conferences and hands-on projects.
+          </p>
+          <p class="desc">As <b>VP of Finance</b>, I run the money side of our chapter:</p>
+          <ul class="feat stagger">
+            <li style="--i:0">manage our chapter's fundraising</li>
+            <li style="--i:1">plan &amp; host fundraisers for the school</li>
+            <li style="--i:2">land sponsorships from businesses</li>
+            <li style="--i:3">work alongside our officer team</li>
+          </ul>
+          <div class="chips"><span>leadership</span><span>fundraising</span><span>sponsorships</span><span>teamwork</span></div>
+        </div>
+      </div>
+    </article>
+  </section>
+
+  </main>
+
+  <footer class="site-foot">
+    <nav class="foot-links" aria-label="Elsewhere">
+      <a href="https://github.com/yojithprograms" target="_blank" rel="noopener">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        github
+      </a>
+      <a href="#top" id="to-top">↑ back to terminal</a>
+    </nav>
+    <div>© <span id="year">2026</span> Yojith Duvvuri · hand-built, no frameworks</div>
+  </footer>
+
+  <script>
+  (() => {
+    "use strict";
+
+    const $ = (id) => document.getElementById(id);
+    const root = document.documentElement;
+    const out = $("out"), screen = $("screen"), form = $("cli"), input = $("in"), ghost = $("ghost"), foot = $("foot");
+    const PROMPT = form.querySelector(".prompt");
+    const finePointer = matchMedia("(pointer: fine)").matches;
+    const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    /* ======================= theme ======================= */
+    const THEMES = ["green", "amber", "cyan", "pink", "purple"];
+    let theme = THEMES.includes(root.dataset.theme) ? root.dataset.theme : "green";
+    let accentRGB = "";
+    const readAccent = () => { accentRGB = getComputedStyle(root).getPropertyValue("--accent-rgb").trim(); };
+
+    function setTheme(t) {
+      theme = t;
+      if (t === "green") delete root.dataset.theme; else root.dataset.theme = t;
+      readAccent();
+      gem.redraw();
+      try { localStorage.setItem("theme", t); } catch (e) { /* storage blocked — fine */ }
+    }
+    if (theme === "green") delete root.dataset.theme;   // drop invalid saved values
+    readAccent();
+
+    /* ======================= cursor trail ======================= */
+    // One canvas, one rAF loop that only runs while particles are alive.
+    // When the mouse is still, nothing runs at all.
+    (() => {
+      const c = $("trail");
+      if (!finePointer || reducedMotion || !c.getContext) { c.remove(); return; }
+
+      const ctx = c.getContext("2d");
+      const GLYPHS = "01<>/{}[];$#*+=~".split("");
+      const pts = [];      // smooth line points
+      const bits = [];     // falling glyph particles
+      let w = 0, h = 0, raf = 0, lastX = -1, lastY = -1, dist = 0;
+
+      function resize() {
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        w = innerWidth; h = innerHeight;
+        c.width = w * dpr; c.height = h * dpr;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.font = "12px 'JetBrains Mono', monospace";
+        ctx.lineCap = "round";
+      }
+      resize();
+      addEventListener("resize", resize, { passive: true });
+
+      addEventListener("pointermove", (e) => {
+        if (e.pointerType !== "mouse") return;
+        const x = e.clientX, y = e.clientY;
+        pts.push({ x, y, life: 1 });
+        if (pts.length > 24) pts.shift();
+
+        if (lastX >= 0) dist += Math.hypot(x - lastX, y - lastY);
+        lastX = x; lastY = y;
+        if (dist > 26 && bits.length < 40) {   // drop a glyph every ~26px travelled
+          dist = 0;
+          bits.push({
+            x, y,
+            vx: (Math.random() - .5) * .6,
+            vy: Math.random() * .4 + .2,
+            life: 1,
+            ch: GLYPHS[(Math.random() * GLYPHS.length) | 0],
+          });
+        }
+        if (!raf) raf = requestAnimationFrame(tick);
+      }, { passive: true });
+
+      function tick() {
+        ctx.clearRect(0, 0, w, h);
+
+        // fading line
+        for (let i = pts.length - 1; i >= 0; i--) {
+          if ((pts[i].life -= .06) <= 0) pts.splice(i, 1);
+        }
+        for (let i = 1; i < pts.length; i++) {
+          const a = pts[i - 1], b = pts[i];
+          ctx.strokeStyle = `rgba(${accentRGB},${b.life * .55})`;
+          ctx.lineWidth = b.life * 3;
+          ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+        }
+
+        // falling glyphs
+        for (let i = bits.length - 1; i >= 0; i--) {
+          const p = bits[i];
+          p.x += p.vx; p.y += p.vy; p.vy += .03;
+          if ((p.life -= .018) <= 0) { bits.splice(i, 1); continue; }
+          ctx.fillStyle = `rgba(${accentRGB},${p.life * .8})`;
+          ctx.fillText(p.ch, p.x, p.y);
+        }
+
+        raf = (pts.length || bits.length) ? requestAnimationFrame(tick) : 0;
+      }
+    })();
+
+    /* ======================= background spotlight ======================= */
+    // Moves one element with transform (compositor-only), at most once per frame.
+    if (finePointer && !reducedMotion) {
+      const spot = $("spot");
+      let sx = 0, sy = 0, queued = false;
+      addEventListener("pointermove", (e) => {
+        sx = e.clientX; sy = e.clientY;
+        if (queued) return;
+        queued = true;
+        requestAnimationFrame(() => {
+          spot.style.transform = `translate3d(${sx}px, ${sy}px, 0)`;
+          spot.classList.add("on");
+          queued = false;
+        });
+      }, { passive: true });
+      root.addEventListener("mouseleave", () => spot.classList.remove("on"));
+    }
+
+    /* ======================= little extras ======================= */
+    // live clock in the title bar
+    const clock = $("clock");
+    const tickClock = () => { clock.textContent = new Date().toTimeString().slice(0, 8); };
+    tickClock();
+    setInterval(tickClock, 1000);
+
+    // tab title when you switch away
+    const TITLE = document.title;
+    document.addEventListener("visibilitychange", () => {
+      document.title = document.hidden ? "come back... 👀" : TITLE;
+    });
+
+    // hovering the name scrambles it, then it decodes back
+    const SCRAMBLE = "!<>-_\\/[]{}=+*^?#01";
+    function scramble(el) {
+      if (el.dataset.busy || reducedMotion) return;
+      el.dataset.busy = "1";
+      const final = el.textContent;
+      const total = 14;
+      let f = 0;
+      const id = setInterval(() => {
+        f++;
+        const solved = (f / total) * final.length;
+        el.textContent = [...final].map((ch, i) =>
+          ch === " " || i < solved ? ch : SCRAMBLE[(Math.random() * SCRAMBLE.length) | 0]
+        ).join("");
+        if (f >= total) { clearInterval(id); el.textContent = final; delete el.dataset.busy; }
+      }, 30);
+    }
+    out.addEventListener("pointerover", (e) => {
+      const n = e.target.closest(".name");
+      if (n && !form.hidden) scramble(n);
+    });
+
+    /* ======================= spinning diamond ======================= */
+    // An elongated octahedron (the diamond shape) rendered with a few lines of 3D math.
+    // Spins on its own; drag to rotate it, release to fling, click for a quick spin.
+    // The loop only runs while it's on screen (and never in a hidden tab).
+    const gem = (() => {
+      const c = document.createElement("canvas");
+      c.className = "gem";
+      c.title = "drag me";
+      c.setAttribute("aria-hidden", "true");
+      const ctx = c.getContext("2d");
+
+      const H = 1.32, R = .8;                 // half-height, equator radius
+      const V = [[0, H, 0], [R, 0, 0], [0, 0, R], [-R, 0, 0], [0, 0, -R], [0, -H, 0]];
+      const F = [[0, 1, 2], [0, 2, 3], [0, 3, 4], [0, 4, 1], [5, 2, 1], [5, 3, 2], [5, 4, 3], [5, 1, 4]];
+      const LIGHT = (() => { const l = [-.5, .75, -1], n = Math.hypot(...l); return l.map((v) => v / n); })();
+      const SPIN = 1.15;                      // idle spin, rad/s
+      const TILT = .3;                        // resting tilt toward the viewer
+
+      let ry = 0, rx = TILT, vy = reducedMotion ? 0 : SPIN, vx = 0;
+      let px = 0, dpr = 1, raf = 0, last = 0, visible = true, drag = null;
+
+      function resize() {
+        dpr = Math.min(window.devicePixelRatio || 1, 2);
+        px = c.clientWidth;                     // layout size — ignores the pop-in scale animation
+        c.width = c.height = Math.max(1, Math.round(px * dpr));
+        draw();
+      }
+
+      function draw() {
+        const S = c.width;
+        if (!S) return;
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, S, S);
+        const sy = Math.sin(ry), cy = Math.cos(ry), sx = Math.sin(rx), cx = Math.cos(rx);
+        const D = 4.5, scale = S * .36;
+
+        // rotate (Y then X) and project with mild perspective
+        const P = V.map(([x, y, z]) => {
+          const x1 = x * cy + z * sy, z1 = -x * sy + z * cy;
+          const y2 = y * cx - z1 * sx, z2 = y * sx + z1 * cx;
+          const k = D / (D + z2);
+          return { x: x1, y: y2, z: z2, sx: S / 2 + x1 * scale * k, sy: S / 2 - y2 * scale * k };
+        });
+
+        const faces = F.map((f) => {
+          const [a, b, d] = f.map((i) => P[i]);
+          const u = [b.x - a.x, b.y - a.y, b.z - a.z], v = [d.x - a.x, d.y - a.y, d.z - a.z];
+          let n = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+          const m = [(a.x + b.x + d.x) / 3, (a.y + b.y + d.y) / 3, (a.z + b.z + d.z) / 3];
+          if (n[0] * m[0] + n[1] * m[1] + n[2] * m[2] < 0) n = n.map((q) => -q);   // point outward
+          const len = Math.hypot(...n) || 1;
+          n = n.map((q) => q / len);
+          return { pts: [a, b, d], front: n[2] < 0, light: Math.max(0, n[0] * LIGHT[0] + n[1] * LIGHT[1] + n[2] * LIGHT[2]) };
+        });
+
+        const path = (pts) => {
+          ctx.beginPath();
+          ctx.moveTo(pts[0].sx, pts[0].sy);
+          ctx.lineTo(pts[1].sx, pts[1].sy);
+          ctx.lineTo(pts[2].sx, pts[2].sy);
+          ctx.closePath();
+        };
+        ctx.lineJoin = "round";
+
+        // back edges, faint — the "hologram" look
+        ctx.lineWidth = dpr;
+        ctx.strokeStyle = `rgba(${accentRGB},.22)`;
+        for (const f of faces) if (!f.front) { path(f.pts); ctx.stroke(); }
+
+        // front faces, lit
+        for (const f of faces) {
+          if (!f.front) continue;
+          const b = .18 + .82 * f.light;
+          path(f.pts);
+          ctx.fillStyle = `rgba(${accentRGB},${(.1 + .55 * b).toFixed(3)})`;
+          ctx.fill();
+          if (f.light > .8) {                // glint on the brightest facet
+            ctx.fillStyle = `rgba(255,255,255,${((f.light - .8) * 1.4).toFixed(3)})`;
+            ctx.fill();
+          }
+        }
+        ctx.shadowColor = `rgba(${accentRGB},.85)`;
+        ctx.shadowBlur = 6 * dpr;
+        ctx.lineWidth = 1.3 * dpr;
+        ctx.strokeStyle = `rgba(${accentRGB},.95)`;
+        for (const f of faces) if (f.front) { path(f.pts); ctx.stroke(); }
+        ctx.shadowBlur = 0;
+      }
+
+      function frame(t) {
+        raf = 0;
+        const dt = last ? Math.min(.05, (t - last) / 1000) : 1 / 60;
+        last = t;
+        if (!drag) {
+          const k = 1 - Math.exp(-dt * 1.6);          // ease back to the idle spin
+          vy += ((reducedMotion ? 0 : SPIN) - vy) * k;
+          vx += -vx * k;
+          rx += vx * dt + (TILT - rx) * (1 - Math.exp(-dt * 1.2));
+          ry += vy * dt;
+        }
+        draw();
+        const settling = Math.abs(vy) > .01 || Math.abs(vx) > .01 || Math.abs(rx - TILT) > .002;
+        if (visible && c.isConnected && (drag || !reducedMotion || settling)) raf = requestAnimationFrame(frame);
+        else last = 0;
+      }
+      const kick = () => { if (!raf) raf = requestAnimationFrame(frame); };
+
+      // drag to rotate, fling on release, click to spin
+      c.addEventListener("pointerdown", (e) => {
+        drag = { x: e.clientX, y: e.clientY, t: performance.now(), moved: 0 };
+        c.setPointerCapture(e.pointerId);
+        vy = vx = 0;
+        kick();
+      });
+      c.addEventListener("pointermove", (e) => {
+        if (!drag) return;
+        const now = performance.now(), dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+        const dt = Math.max(.008, (now - drag.t) / 1000);
+        ry += dx * .013;
+        rx = Math.max(-1.3, Math.min(1.3, rx + dy * .013));
+        vy = vy * .6 + (dx * .013 / dt) * .4;       // smoothed fling velocity
+        vx = vx * .6 + (dy * .013 / dt) * .4;
+        drag.moved += Math.abs(dx) + Math.abs(dy);
+        drag.x = e.clientX; drag.y = e.clientY; drag.t = now;
+        kick();
+      });
+      const release = () => {
+        if (!drag) return;
+        if (drag.moved < 4) vy = 16;                // a click = quick spin
+        else if (performance.now() - drag.t > 80) vy = vx = 0;   // held still before letting go
+        drag = null;
+        kick();
+      };
+      c.addEventListener("pointerup", release);
+      c.addEventListener("pointercancel", release);
+
+      new ResizeObserver(resize).observe(c);
+      new IntersectionObserver(([e]) => { visible = e.isIntersecting; if (visible) kick(); }).observe(c);
+
+      return {
+        // put the diamond at the end of a line (it moves, so there's only ever one)
+        attach(el) {
+          c.style.animation = "none";
+          void c.offsetWidth;                       // restart the pop-in animation
+          c.style.animation = "";
+          el.append(c);
+          kick();
+        },
+        redraw: draw,
+      };
+    })();
+
+    /* ======================= terminal output ======================= */
+    let fast = false; // flips to true when the user skips the intro
+    const sleep = (ms) => fast ? Promise.resolve() : new Promise((r) => setTimeout(r, ms));
+    const scroll = () => { screen.scrollTop = screen.scrollHeight; };
+
+    function line(cls) {
+      const d = document.createElement("div");
+      d.className = "line" + (cls ? " " + cls : "");
+      out.appendChild(d);
+      scroll();
+      return d;
+    }
+    const print = (text, cls) => { line(cls).textContent = text; };
+
+    // a clickable command; `run` defaults to the label
+    function cmdLink(label, run = label) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "cmd";
+      b.dataset.cmd = run;
+      b.textContent = label;
+      return b;
+    }
+
+    async function typeInto(el, text, speed = 45) {
+      const t = document.createTextNode("");
+      const cur = document.createElement("span");
+      cur.className = "cur";
+      el.append(t, cur);
+      if (fast) t.data = text;
+      else for (const ch of text) { t.data += ch; await sleep(speed + Math.random() * speed * .7); }
+      cur.remove();
+    }
+
+    async function cmd(text) {
+      const l = line();
+      l.append(PROMPT.cloneNode(true), " ");
+      const cur = document.createElement("span");
+      cur.className = "cur";
+      l.append(cur);
+      await sleep(260);           // short "thinking" pause at the prompt
+      cur.remove();
+      await typeInto(l, text, 38);
+      await sleep(140);
+    }
+
+    function heroLine() {
+      const hero = line("hero");
+      const pre = document.createElement("span");
+      const name = document.createElement("span");
+      name.className = "name";
+      hero.append(pre, name);
+      return [pre, name];
+    }
+
+    // in-page link that smooth-scrolls to a section
+    function sectionLink(label, id) {
+      const a = document.createElement("a");
+      a.className = "cmd";
+      a.href = "#" + id;
+      a.textContent = label;
+      a.addEventListener("click", (e) => { e.preventDefault(); goTo(id); });
+      return a;
+    }
+
+    function tips() {
+      line("dim").append("type ", cmdLink("help"), " or view my ", sectionLink("projects", "projects"), " or ", sectionLink("experience", "experience"));
+    }
+
+    // what stays on screen after `clear`
+    function banner() {
+      out.textContent = "";
+      const [pre, name] = heroLine();
+      pre.textContent = "Hi, I'm ";
+      name.textContent = "Yojith Duvvuri";
+      gem.attach(name.parentNode);
+      print("I'm building cool stuff right now, dude.", "sub");
+      line();
+      tips();
+    }
+
+    /* ======================= projects section ======================= */
+    const goTo = (id) => $(id).scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth" });
+    const goProjects = () => goTo("projects");
+
+    // count stats up from 0 when they scroll into view
+    function countUp(el) {
+      const end = +el.dataset.count, suffix = el.dataset.suffix || "";
+      if (reducedMotion) return;
+      const t0 = performance.now(), dur = 900;
+      const step = (t) => {
+        const p = Math.min(1, (t - t0) / dur);
+        el.textContent = Math.round(end * (1 - Math.pow(1 - p, 3))) + suffix;
+        if (p < 1) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    }
+
+    // windows "open" as they enter the viewport; each one is observed once, then dropped
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        if (!e.isIntersecting) continue;
+        e.target.classList.add("in");
+        e.target.querySelectorAll("[data-count]").forEach(countUp);
+        io.unobserve(e.target);
+      }
+    }, { threshold: .18 });
+    document.querySelectorAll(".reveal").forEach((el) => io.observe(el));
+
+    // 3D tilt on the screenshot, following the mouse (one transform write per frame)
+    if (finePointer && !reducedMotion) {
+      const shot = $("shot");
+      let rx = 0, ry = 0, queued = false;
+      shot.addEventListener("pointermove", (e) => {
+        const r = shot.getBoundingClientRect();
+        ry = ((e.clientX - r.left) / r.width - .5) * 10;
+        rx = -((e.clientY - r.top) / r.height - .5) * 8;
+        if (queued) return;
+        queued = true;
+        requestAnimationFrame(() => {
+          shot.style.setProperty("--rx", rx.toFixed(2) + "deg");
+          shot.style.setProperty("--ry", ry.toFixed(2) + "deg");
+          queued = false;
+        });
+      });
+      shot.addEventListener("pointerleave", () => {
+        shot.style.setProperty("--rx", "0deg");
+        shot.style.setProperty("--ry", "0deg");
+      });
+    }
+
+    $("to-top").addEventListener("click", (e) => {
+      e.preventDefault();
+      scrollTo({ top: 0, behavior: reducedMotion ? "auto" : "smooth" });
+      if (finePointer && !form.hidden) input.focus({ preventScroll: true });
+    });
+
+    $("year").textContent = new Date().getFullYear();
+    if ("scrollRestoration" in window.history) window.history.scrollRestoration = "manual";   // always start at the terminal
+    scrollTo(0, 0);
+
+    /* ======================= intro ======================= */
+    async function intro() {
+      const d = new Date();
+      print(`Last login: ${d.toDateString()} ${d.toTimeString().slice(0, 8)} on ttys001`, "dim");
+
+      await cmd("whoami");
+      const [pre, name] = heroLine();
+      await typeInto(pre, "Hi, I'm ", 42);
+      await typeInto(name, "Yojith Duvvuri", 50);
+      gem.attach(name.parentNode);
+
+      await sleep(150);
+      await typeInto(line("sub"), "I'm building cool stuff right now, dude.", 24);
+
+      await cmd("./launch-portfolio.sh");
+      const bar = line("dim");
+      const N = 20;
+      for (let i = 0; i <= N; i++) {
+        bar.textContent = `[${"#".repeat(i)}${".".repeat(N - i)}] ${i * 5}%`;
+        await sleep(20 + Math.random() * 35);
+      }
+      await sleep(250);
+      print("✓ portfolio online.", "acc");
+      line();
+      tips();
+    }
+
+    function skip() { fast = true; }
+
+    function startIntro() {
+      addEventListener("keydown", skip);
+      addEventListener("pointerdown", skip);
+      intro().then(() => {
+        removeEventListener("keydown", skip);
+        removeEventListener("pointerdown", skip);
+        fast = false;
+        out.setAttribute("aria-live", "polite");   // announce command output from here on
+        form.hidden = false;
+        foot.textContent = "";
+        const hint = document.createElement("button");
+        hint.type = "button";
+        hint.className = "hint";
+        hint.innerHTML = '<span class="arrow">↓</span> scroll to see my work';
+        hint.addEventListener("click", goProjects);
+        foot.append(hint);
+        scroll();
+        if (finePointer) input.focus({ preventScroll: true });
+      });
+    }
+
+    /* ======================= click-to-enter gate ======================= */
+    const gate = $("gate");
+
+    function enter() {
+      if (root.classList.contains("open")) return;
+      root.classList.add("open");               // kicks off the CSS zoom
+      removeEventListener("keydown", onGateKey);
+      setTimeout(startIntro, reducedMotion ? 100 : 300);   // start typing as the terminal lands
+      setTimeout(() => {                        // tidy up once the transition is done
+        gate.remove();
+        root.classList.remove("gated", "open");
+      }, 850);
+    }
+
+    function onGateKey(e) {
+      if (["Tab", "Shift", "Control", "Alt", "Meta"].includes(e.key)) return;
+      e.preventDefault();
+      enter();
+    }
+
+    if (!finePointer) {
+      gate.querySelector(".gate-cta").childNodes[1].textContent = " tap to enter ";
+      $("gate-hint").remove();
+    }
+    gate.addEventListener("click", enter);
+    addEventListener("keydown", onGateKey);
+    gate.focus({ preventScroll: true });
+
+    /* ======================= commands ======================= */
+    const COMMANDS = {
+      help: "list commands",
+      whoami: "about me",
+      projects: "things I've built",
+      experience: "things I do",
+      theme: "change colors",
+      clear: "clear the screen",
+    };
+
+    // tiny edit distance for "did you mean"
+    function editDist(a, b) {
+      const d = Array.from({ length: a.length + 1 }, (_, i) => [i]);
+      for (let j = 1; j <= b.length; j++) d[0][j] = j;
+      for (let i = 1; i <= a.length; i++)
+        for (let j = 1; j <= b.length; j++)
+          d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] !== b[j - 1]));
+      return d[a.length][b.length];
+    }
+
+    function run(raw) {
+      const [name = "", ...args] = raw.trim().split(/\s+/);
+      const arg = args.join(" ");
+      switch (name.toLowerCase()) {
+        case "": return;
+        case "help": {
+          for (const [k, v] of Object.entries(COMMANDS)) {
+            const l = line("help-row");
+            const desc = document.createElement("span");
+            desc.className = "dim";
+            desc.textContent = v;
+            l.append(cmdLink(k), desc);
+          }
+          return;
+        }
+        case "whoami": {
+          print("Yojith Duvvuri — I build cool stuff.");
+          const gh = document.createElement("a");
+          gh.className = "cmd";
+          gh.href = "https://github.com/yojithprograms";
+          gh.target = "_blank";
+          gh.rel = "noopener";
+          gh.textContent = "github.com/yojithprograms ↗";
+          line("dim").append("→ ", gh);
+          return;
+        }
+        case "theme": {
+          const t = arg.toLowerCase();
+          if (THEMES.includes(t)) { setTheme(t); return print(`theme set to ${t} ✓`, "acc"); }
+          if (t) print(`theme: unknown theme '${arg}'`, "red");
+          const l = line();
+          l.append("themes: ");
+          THEMES.forEach((x, i) => {
+            if (i) l.append("  ");
+            const b = cmdLink(x === theme ? x + "*" : x, "theme " + x);
+            l.append(b);
+          });
+          return print("usage: theme <name>", "dim");
+        }
+        case "projects":
+          print("→ opening ~/projects ...", "dim");
+          return goProjects();
+        case "experience":
+          print("→ opening ~/experience ...", "dim");
+          return goTo("experience");
+        case "clear": return banner();
+        default: {
+          print(`zsh: command not found: ${name}`, "red");
+          const best = Object.keys(COMMANDS).map((c) => [c, editDist(name.toLowerCase(), c)]).sort((a, b) => a[1] - b[1])[0];
+          const l = line("dim");
+          if (best[1] <= 2) l.append("did you mean ", cmdLink(best[0]), "?");
+          else l.append("try ", cmdLink("help"));
+        }
+      }
+    }
+
+    const history = [];
+    let hIdx = 0;
+
+    function exec(raw) {
+      const l = line();
+      l.append(PROMPT.cloneNode(true), " " + raw);
+      if (raw.trim()) history.push(raw);
+      hIdx = history.length;
+      run(raw);
+      scroll();
+    }
+
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const raw = input.value;
+      input.value = "";
+      updateGhost();
+      exec(raw);
+    });
+
+    // clickable commands anywhere in the output
+    out.addEventListener("click", (e) => {
+      const b = e.target.closest("[data-cmd]");
+      if (!b || form.hidden) return;
+      exec(b.dataset.cmd);
+      if (finePointer) input.focus({ preventScroll: true });
+    });
+
+    /* ---------- autosuggestion ---------- */
+    function suggestion() {
+      const v = input.value;
+      if (!v.trim()) return "";
+      const pool = [...history.slice().reverse(), ...Object.keys(COMMANDS)];
+      const hit = pool.find((c) => c.length > v.length && c.toLowerCase().startsWith(v.toLowerCase()));
+      return hit ? v + hit.slice(v.length) : "";
+    }
+    function updateGhost() {
+      const s = suggestion();
+      ghost.textContent = "";
+      if (!s) return;
+      const typed = document.createElement("span");
+      typed.className = "typed";
+      typed.textContent = input.value;
+      ghost.append(typed, s.slice(input.value.length));
+    }
+    function acceptGhost() {
+      const s = suggestion();
+      if (!s) return false;
+      input.value = s;
+      updateGhost();
+      return true;
+    }
+    input.addEventListener("input", updateGhost);
+
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowUp" && hIdx > 0) {
+        e.preventDefault();
+        input.value = history[--hIdx];
+        updateGhost();
+      } else if (e.key === "ArrowDown") {
+        e.preventDefault();
+        hIdx = Math.min(history.length, hIdx + 1);
+        input.value = history[hIdx] ?? "";
+        updateGhost();
+      } else if (e.key === "Tab") {
+        e.preventDefault();
+        acceptGhost();
+      } else if (e.key === "ArrowRight" && input.selectionStart === input.value.length) {
+        if (acceptGhost()) e.preventDefault();
+      } else if (e.key === "l" && e.ctrlKey) {
+        e.preventDefault();
+        banner();
+      }
+    });
+
+    // clicking anywhere in the terminal focuses the prompt (unless selecting text)
+    screen.addEventListener("click", () => {
+      if (!form.hidden && getSelection().isCollapsed) input.focus({ preventScroll: true });
+    });
+  })();
+  </script>
+</body>
+</html>

@@ -1578,9 +1578,12 @@
       }
     });
 
-    // clicking anywhere in the terminal focuses the prompt (unless selecting text)
-    screen.addEventListener("click", () => {
-      if (!form.hidden && getSelection().isCollapsed) input.focus({ preventScroll: true });
+    // clicking in the terminal focuses the prompt (unless selecting text or hitting a link).
+    // on touch screens only the prompt line itself does, so the keyboard doesn't pop up on stray taps
+    screen.addEventListener("click", (e) => {
+      if (form.hidden || !getSelection().isCollapsed || e.target.closest("a, button")) return;
+      if (!finePointer && !e.target.closest("#cli")) return;
+      input.focus({ preventScroll: true });
     });
   })();
   </script>

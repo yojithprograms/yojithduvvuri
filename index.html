@@ -715,6 +715,32 @@
       .js .reveal .me, .js .reveal.in .me { opacity: 1; animation: none; }
       .shot { transform: none; }
     }
+
+    /* ---------- mini player: one round play/pause button ---------- */
+    .player {
+      position: fixed;
+      right: 16px; bottom: 16px;
+      z-index: 50;
+      width: 40px; height: 40px;
+      display: grid; place-items: center;
+      padding: 0;
+      color: var(--accent);
+      background: var(--bar);
+      border: 1px solid var(--border);
+      border-radius: 50%;
+      cursor: pointer;
+      transition: border-color .2s, box-shadow .2s, opacity .4s;
+    }
+    .player:hover, .player:focus-visible {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 14px -2px rgba(var(--accent-rgb), .5);
+    }
+    .player svg { width: 16px; height: 16px; fill: currentColor; }
+    .player .i-pause { display: none; }
+    .player.playing .i-pause { display: block; }
+    .player.playing .i-play { display: none; }
+    .gated .player { opacity: 0; pointer-events: none; }
   </style>
 </head>
 <body>
@@ -732,6 +758,11 @@
       <span class="gate-cta"><span class="br l">[</span> click to enter <span class="br r">]</span></span>
       <span class="gate-hint" id="gate-hint">or press any key</span>
     </span>
+  </button>
+
+  <button class="player" id="player" type="button" aria-label="Play music">
+    <svg class="i-play" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2l10 6-10 6z"/></svg>
+    <svg class="i-pause" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 2h4v12H3zM9 2h4v12H9z"/></svg>
   </button>
 
   <div class="progress" aria-hidden="true"></div>
@@ -1399,12 +1430,45 @@
       });
     }
 
+    /* ======================= music ======================= */
+    const player = $("player");
+    const SONG_START = 76, VOLUME = 0.6, FADE_MS = 2000;
+    const song = new Audio("assets/still-love-you.mp3");
+    song.preload = "auto";
+    song.currentTime = SONG_START;
+    song.addEventListener("ended", () => { song.currentTime = SONG_START; fadeIn().catch(() => {}); });
+
+    let fadeRaf = 0;
+    function fadeIn() {
+      cancelAnimationFrame(fadeRaf);
+      song.volume = 0;
+      const t0 = performance.now();
+      const step = (now) => {
+        const k = Math.min(1, (now - t0) / FADE_MS);
+        song.volume = VOLUME * k;
+        if (k < 1) fadeRaf = requestAnimationFrame(step);
+      };
+      fadeRaf = requestAnimationFrame(step);
+      return song.play();
+    }
+    function setPlaying(on) {
+      player.classList.toggle("playing", on);
+      player.setAttribute("aria-label", on ? "Pause music" : "Play music");
+    }
+    song.addEventListener("play", () => setPlaying(true));
+    song.addEventListener("pause", () => setPlaying(false));
+    player.addEventListener("click", () => {
+      if (song.paused) fadeIn().catch(() => {});
+      else song.pause();
+    });
+
     /* ======================= click-to-enter gate ======================= */
     const gate = $("gate");
 
     function enter() {
       if (root.classList.contains("open")) return;
       root.classList.add("open");               // kicks off the CSS zoom
+      fadeIn().catch(() => {});                 // music starts on the click (autoplay needs a gesture)
       removeEventListener("keydown", onGateKey);
       setTimeout(startIntro, reducedMotion ? 100 : 300);   // start typing as the terminal lands
       setTimeout(() => {                        // tidy up once the transition is done

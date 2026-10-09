@@ -1435,12 +1435,20 @@
     const SONG_START = 76, VOLUME = 0.6, FADE_MS = 2000;
     const song = new Audio("assets/still-love-you.mp3");
     song.preload = "auto";
-    song.currentTime = SONG_START;
-    song.addEventListener("ended", () => { song.currentTime = SONG_START; fadeIn().catch(() => {}); });
+    song.addEventListener("ended", () => fadeIn(true));
 
     let fadeRaf = 0;
-    function fadeIn() {
+    // plays right away (inside the click, so autoplay is allowed) and seeks to 1:16 as soon as
+    // the file's metadata is in; the volume stays at 0 until then, so you never hear the intro
+    let seeked = false;
+    function seekToStart() { song.currentTime = SONG_START; seeked = true; }
+    function fadeIn(restart) {
       cancelAnimationFrame(fadeRaf);
+      if (restart) seeked = false;
+      if (!seeked) {
+        if (song.readyState >= 1) seekToStart();
+        else song.addEventListener("loadedmetadata", seekToStart, { once: true });
+      }
       song.volume = 0;
       const t0 = performance.now();
       const step = (now) => {
@@ -1449,16 +1457,16 @@
         if (k < 1) fadeRaf = requestAnimationFrame(step);
       };
       fadeRaf = requestAnimationFrame(step);
-      return song.play();
+      song.play().catch(() => {});
     }
     function setPlaying(on) {
       player.classList.toggle("playing", on);
       player.setAttribute("aria-label", on ? "Pause music" : "Play music");
     }
-    song.addEventListener("play", () => setPlaying(true));
+    song.addEventListener("playing", () => setPlaying(true));
     song.addEventListener("pause", () => setPlaying(false));
     player.addEventListener("click", () => {
-      if (song.paused) fadeIn().catch(() => {});
+      if (song.paused) fadeIn();
       else song.pause();
     });
 
@@ -1468,7 +1476,7 @@
     function enter() {
       if (root.classList.contains("open")) return;
       root.classList.add("open");               // kicks off the CSS zoom
-      fadeIn().catch(() => {});                 // music starts on the click (autoplay needs a gesture)
+      fadeIn();                                 // music starts on the click (autoplay needs a gesture)
       removeEventListener("keydown", onGateKey);
       setTimeout(startIntro, reducedMotion ? 100 : 300);   // start typing as the terminal lands
       setTimeout(() => {                        // tidy up once the transition is done
